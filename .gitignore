@@ -1,0 +1,24 @@
+# ─── Python ───────────────────────────────────
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# ─── Dati (rigenerati dal server) ─────────────
+data/imprese_firenze.json
+*.log
+cron.log
+scraper.log
+
+# ─── Editor / OS ──────────────────────────────
+.DS_Store
+.env
+.vscode/
+*.swp
+*.swo
+Thumbs.db

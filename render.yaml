@@ -1,0 +1,34 @@
+# render.yaml — Infrastruttura Firenze Business Tracker
+# Render.com Infrastructure-as-Code
+# Doc: https://render.com/docs/blueprint-spec
+
+services:
+  # ── 1. Web Server (Dashboard + API) ──────────────────
+  - type: web
+    name: firenze-business-tracker
+    runtime: python
+    region: frankfurt          # Frankfurt = più vicino a Firenze
+    plan: free                 # Piano gratuito (upgrade per più risorse)
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60
+    healthCheckPath: /api/stato
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 10000
+
+  # ── 2. Cron Job (Aggiornamento Giornaliero Automatico) ─
+  - type: cron
+    name: firenze-scraper-giornaliero
+    runtime: python
+    region: frankfurt
+    plan: free
+    schedule: "0 6 * * *"     # Ogni giorno alle 06:00 (ora italiana)
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scraper/scraper.py --demo
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
