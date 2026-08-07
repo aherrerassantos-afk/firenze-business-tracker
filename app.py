@@ -1,18 +1,25 @@
 """
 app.py — Server Flask Multi-Utente
 Firenze Business Tracker — API + Dashboard Web
+Compatibile con: locale, server Linux, Vercel serverless
 """
 
 import os
 import sys
 import json
 import logging
-import threading
-import schedule
-import time
 from datetime import datetime
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, render_template, request, Response
 from flask_cors import CORS
+
+# Rileva ambiente serverless (Vercel)
+IS_SERVERLESS = os.environ.get("VERCEL", False) or os.environ.get("AWS_LAMBDA_FUNCTION_NAME", False)
+
+# Schedule e threading solo in ambienti non-serverless
+if not IS_SERVERLESS:
+    import threading
+    import schedule
+    import time
 
 # Aggiungi il path per importare il modulo scraper
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -25,13 +32,18 @@ from scraper.scraper import esegui_scraping, salva_risultati, carica_dati_esiste
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)  # Abilita CORS per accesso da browser
 
+# Logging: su Vercel solo stdout (no file)
+handlers = [logging.StreamHandler(sys.stdout)]
+if not IS_SERVERLESS:
+    try:
+        handlers.append(logging.FileHandler(LOG_FILE))
+    except Exception:
+        pass
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler(sys.stdout),
-    ],
+    handlers=handlers,
 )
 log = logging.getLogger(__name__)
 
@@ -42,14 +54,18 @@ stato_aggiornamento = {
     "ultimo_esito": None,
 }
 
+# Cache in-memory per Vercel (non ha file system persistente)
+_cache_imprese = None
+_cache_timestamp = None
+
 
 # ─────────────────────────────────────────
 # Funzione aggiornamento dati
 # ─────────────────────────────────────────
 
 def aggiorna_dati(giorni=7, forza_demo=False):
-    """Esegue lo scraping e salva i risultati."""
-    global stato_aggiornamento
+    """Esegue lo scraping e salva i risultati (file su server, cache su Vercel)."""
+    global stato_aggiornamento, _cache_imprese, _cache_timestamp
     if stato_aggiornamento["in_corso"]:
         log.info("Aggiornamento già in corso, skip.")
         return
@@ -58,7 +74,11 @@ def aggiorna_dati(giorni=7, forza_demo=False):
     try:
         log.info("🔄 Avvio aggiornamento dati automatico...")
         risultati = esegui_scraping(giorni=giorni, forza_demo=forza_demo)
-        salva_risultati(risultati)
+        if IS_SERVERLESS:
+            _cache_imprese = risultati
+            _cache_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            salva_risultati(risultati)
         stato_aggiornamento["ultimo_aggiornamento"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         stato_aggiornamento["ultimo_esito"] = f"✅ {len(risultati)} imprese aggiornate"
         log.info(f"✅ Aggiornamento completato: {len(risultati)} imprese")
@@ -67,6 +87,29 @@ def aggiorna_dati(giorni=7, forza_demo=False):
         log.error(f"❌ Errore aggiornamento: {e}")
     finally:
         stato_aggiornamento["in_corso"] = False
+
+
+def get_dati():
+    """Ritorna i dati: dalla cache in-memory (Vercel) o dal file JSON (server locale)."""
+    global _cache_imprese, _cache_timestamp
+    if IS_SERVERLESS:
+        if _cache_imprese is None:
+            log.info("🔄 Prima invocazione Vercel: genero dati demo...")
+            risultati = esegui_scraping(forza_demo=True)
+            _cache_imprese = risultati
+            _cache_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return {
+            "metadata": {
+                "ultimo_aggiornamento": _cache_timestamp,
+                "provincia": "Firenze",
+                "codice_provincia": "FI",
+                "totale_imprese": len(_cache_imprese),
+                "periodo_analizzato_giorni": 7,
+            },
+            "imprese": _cache_imprese,
+        }
+    else:
+        return carica_dati_esistenti()
 
 
 # ─────────────────────────────────────────
@@ -90,7 +133,7 @@ def api_imprese():
       - comune: string (filtra per comune)
       - ateco: string (filtra per codice ATECO)
     """
-    dati = carica_dati_esistenti()
+    dati = get_dati()
 
     if not dati:
         # Prima esecuzione: genera dati demo
@@ -143,7 +186,7 @@ def api_imprese():
 @app.route("/api/stats")
 def api_stats():
     """Statistiche aggregate sulle imprese."""
-    dati = carica_dati_esistenti()
+    dati = get_dati()
     if not dati:
         return jsonify({"success": False, "error": "Nessun dato disponibile"}), 404
 
@@ -232,7 +275,7 @@ def api_stato():
 @app.route("/api/comuni")
 def api_comuni():
     """Lista dei comuni disponibili nei dati."""
-    dati = carica_dati_esistenti()
+    dati = get_dati()
     if not dati:
         return jsonify({"comuni": []})
     comuni = sorted(set(
@@ -248,7 +291,7 @@ def api_export_csv():
     import csv
     from flask import Response
 
-    dati = carica_dati_esistenti()
+    dati = get_dati()
     if not dati:
         return jsonify({"error": "Nessun dato"}), 404
 

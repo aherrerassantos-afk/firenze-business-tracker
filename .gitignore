@@ -22,3 +22,5 @@ scraper.log
 *.swp
 *.swo
 Thumbs.db
+.vercel
+.env*
