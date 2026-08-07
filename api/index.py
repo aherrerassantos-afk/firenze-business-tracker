@@ -361,21 +361,28 @@ svg.ico{width:15px;height:15px;flex-shrink:0}
 .empty-ico{font-size:44px;margin-bottom:14px}
 .empty h3{font-size:17px;font-weight:600;color:var(--t2);margin-bottom:7px}
 .empty p{font-size:13px;color:var(--t3)}
-.dtable{width:100%;border-collapse:collapse;font-size:13px}
-.dtable thead{background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);position:sticky;top:68px;z-index:5}
-.dtable th{padding:11px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);white-space:nowrap;user-select:none;cursor:pointer}
+.dtable{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.dtable thead{background:rgba(255,255,255,.03);border-bottom:1px solid var(--border)}
+.dtable th{padding:11px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);white-space:nowrap;user-select:none;cursor:pointer;overflow:hidden;text-overflow:ellipsis}
 .dtable th:hover{color:var(--t2)}
-.dtable tbody tr{border-bottom:1px solid rgba(255,255,255,.03);transition:var(--tr);animation:fadeRow .25s ease forwards;opacity:0}
+.dtable tbody tr{border-bottom:1px solid rgba(255,255,255,.04);transition:var(--tr);animation:fadeRow .25s ease forwards;opacity:0}
 @keyframes fadeRow{to{opacity:1}}
 .dtable tbody tr:hover{background:rgba(255,255,255,.04)}
-.dtable td{padding:12px 14px;vertical-align:middle}
+.dtable td{padding:11px 14px;vertical-align:middle;overflow:hidden}
+.col-data{width:105px}
+.col-nome{width:22%}
+.col-comune{width:120px}
+.col-ind{width:18%}
+.col-ateco{width:20%}
+.col-forma{width:17%}
+.col-stato{width:80px}
 .dbadge{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--p300);background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.22);border-radius:var(--r-sm);padding:3px 7px;white-space:nowrap}
-.ncel{font-weight:600;color:var(--t1)}
-.ncel small{display:block;font-size:11px;font-weight:400;color:var(--t3);margin-top:2px}
-.cpill{display:inline-flex;align-items:center;gap:3px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--b400);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:500;white-space:nowrap}
+.ncel{font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ncel small{display:block;font-size:10px;font-weight:400;color:var(--t3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cpill{display:inline-flex;align-items:center;gap:3px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--b400);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .abadge{display:inline-block;font-size:10px;font-family:'JetBrains Mono',monospace;background:rgba(16,185,129,.1);color:var(--g400);border:1px solid rgba(16,185,129,.2);border-radius:var(--r-sm);padding:1px 5px;margin-bottom:2px}
-.adesc{font-size:12px;color:var(--t2)}
-.ftxt{font-size:11px;color:var(--t3)}
+.adesc{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
+.ftxt{font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:100%}
 .sbadge{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:3px 9px;font-size:11px;font-weight:500;background:rgba(16,185,129,.12);color:var(--g400);border:1px solid rgba(16,185,129,.22)}
 .sbadge::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--g400);box-shadow:0 0 5px var(--g400)}
 .pg{display:flex;align-items:center;justify-content:center;gap:14px;padding:14px;border-top:1px solid var(--border)}
@@ -498,13 +505,13 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);margin-top
     <div class="empty" id="emp" style="display:none"><div class="empty-ico">🔍</div><h3>Nessun risultato</h3><p>Prova a modificare i filtri.</p></div>
     <table class="dtable" id="dt">
       <thead><tr>
-        <th onclick="sortBy('data_iscrizione')">Data ↕</th>
-        <th onclick="sortBy('denominazione')">Denominazione ↕</th>
-        <th onclick="sortBy('comune')">Comune ↕</th>
-        <th>Indirizzo</th>
-        <th>Settore ATECO</th>
-        <th>Forma Giuridica</th>
-        <th>Stato</th>
+        <th class="col-data" onclick="sortBy('data_iscrizione')">Data ↕</th>
+        <th class="col-nome" onclick="sortBy('denominazione')">Denominazione ↕</th>
+        <th class="col-comune" onclick="sortBy('comune')">Comune ↕</th>
+        <th class="col-ind">Indirizzo</th>
+        <th class="col-ateco">Settore ATECO</th>
+        <th class="col-forma">Forma Giuridica</th>
+        <th class="col-stato">Stato</th>
       </tr></thead>
       <tbody id="tb"></tbody>
     </table>
@@ -604,13 +611,13 @@ function renderTable(){
   document.getElementById('next').disabled=S.pg>=tp;
   tb.innerHTML=items.map((imp,i)=>`
     <tr style="animation-delay:${i*18}ms">
-      <td><span class="dbadge">${fmt(imp.data_iscrizione)}${imp.data_iscrizione===oggi?' <span style="color:var(--o400)">●</span>':''}</span></td>
-      <td><div class="ncel">${esc(imp.denominazione)}<small>${imp.partita_iva?'P.IVA: '+esc(imp.partita_iva):''}</small></div></td>
-      <td><span class="cpill">📍 ${esc(imp.comune||'—')}</span></td>
-      <td style="font-size:12px;color:var(--t2)">${esc(imp.indirizzo||'—')}</td>
-      <td>${imp.codice_ateco?`<div class="abadge">${esc(imp.codice_ateco)}</div>`:''}<div class="adesc">${esc(imp.desc_ateco||'—')}</div></td>
-      <td><span class="ftxt">${esc(imp.forma_giuridica||'—')}</span></td>
-      <td><span class="sbadge">${esc(imp.stato||'Attiva')}</span></td>
+      <td class="col-data"><span class="dbadge">${fmt(imp.data_iscrizione)}${imp.data_iscrizione===oggi?' <span style="color:var(--o400)">●</span>':''}</span></td>
+      <td class="col-nome"><div class="ncel">${esc(imp.denominazione)}<small>${imp.partita_iva?'P.IVA: '+esc(imp.partita_iva):''}</small></div></td>
+      <td class="col-comune"><span class="cpill">📍 ${esc(imp.comune||'—')}</span></td>
+      <td class="col-ind" style="font-size:12px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(imp.indirizzo||'—')}</td>
+      <td class="col-ateco">${imp.codice_ateco?`<div class="abadge">${esc(imp.codice_ateco)}</div>`:''}<div class="adesc">${esc(imp.desc_ateco||'—')}</div></td>
+      <td class="col-forma"><span class="ftxt">${esc(imp.forma_giuridica||'—')}</span></td>
+      <td class="col-stato"><span class="sbadge">${esc(imp.stato||'Attiva')}</span></td>
     </tr>`).join('');
 }
 function changePage(d){const tp=Math.ceil(S.fil.length/S.pp);S.pg=Math.max(1,Math.min(tp,S.pg+d));renderTable();document.querySelector('.tbox').scrollIntoView({behavior:'smooth',block:'start'})}
