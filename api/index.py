@@ -138,6 +138,8 @@ def genera_imprese(giorni=7):
             "stato": "Attiva",
             "fonte": "Registro Imprese FI",
             "estratto_il": oggi.strftime("%Y-%m-%d %H:%M:%S"),
+            "numero_telefono": None,
+            "telefono_fonte": None,
         })
 
     imprese.sort(key=lambda x: x["data_iscrizione"], reverse=True)
@@ -155,7 +157,12 @@ def get_imprese(giorni=7):
     )
     if not cache_valida:
         log.info("Cache scaduta o vuota, rigenero dati...")
-        _cache["imprese"] = genera_imprese(giorni)
+        imprese_raw = genera_imprese(giorni)
+        for imp in imprese_raw:
+            tel, fonte = telefono_demo(imp["denominazione"] + imp["comune"], imp["comune"])
+            imp["numero_telefono"] = tel
+            imp["telefono_fonte"] = fonte
+        _cache["imprese"] = imprese_raw
         _cache["timestamp"] = ora
     return _cache["imprese"]
 
@@ -171,6 +178,71 @@ def get_metadata(imprese):
         "data_da": (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
         "data_a": datetime.now().strftime("%Y-%m-%d"),
     }
+
+
+
+# ─────────────────────────────────────────
+# Ricerca Telefono — PagineBianche + Demo
+# ─────────────────────────────────────────
+
+import urllib.request
+import urllib.parse
+import re as _re
+
+_phone_cache = {}  # cache: "nome|comune" -> (numero, fonte)
+
+
+def cerca_telefono_paginebianche(nome_societa, comune="Firenze"):
+    """Cerca numero su PagineBianche.it. Ritorna (numero, fonte) o (None, None)."""
+    chiave = f"{nome_societa}|{comune}"
+    if chiave in _phone_cache:
+        return _phone_cache[chiave]
+    nome_pulito = _re.sub(
+        r"\b(srl|spa|snc|sas|cooperativa|ditta|impresa|familiare|semplificata)\b",
+        "", nome_societa, flags=_re.IGNORECASE
+    ).strip()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "it-IT,it;q=0.9",
+        "Referer": "https://www.paginebianche.it/",
+    }
+    url = (f"https://www.paginebianche.it/ricerca"
+           f"?qs={urllib.parse.quote(nome_pulito)}&dv={urllib.parse.quote(comune)}")
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=8)
+        html = resp.read().decode("utf-8", errors="ignore")
+        fi_phones = _re.findall(r"\b055[\s\-]?\d{5,8}\b", html)
+        fissi     = _re.findall(r"\b0\d{2}[\s\-]?\d{6,8}\b", html)
+        mobile    = _re.findall(r"\b3\d{2}[\s\-]?\d{6,7}\b", html)
+        def valido(n):
+            return len(_re.sub(r"[^\d]", "", n)) >= 9
+        for lista in [fi_phones, fissi, mobile]:
+            for p in lista:
+                if valido(p):
+                    r = (p.strip(), "PagineBianche")
+                    _phone_cache[chiave] = r
+                    return r
+    except Exception:
+        pass
+    _phone_cache[chiave] = (None, None)
+    return None, None
+
+
+def telefono_demo(seed_str, comune="Firenze"):
+    """Numero realistico deterministico per dati demo."""
+    import random, hashlib
+    h = int(hashlib.md5(seed_str.encode()).hexdigest(), 16)
+    rng = random.Random(h)
+    tipo = rng.choice(["fisso", "mobile", "mobile"])
+    if tipo == "fisso":
+        pref = {"Firenze":"055","Scandicci":"055","Sesto Fiorentino":"055",
+                "Campi Bisenzio":"055","Bagno a Ripoli":"055","Fiesole":"055",
+                "Empoli":"0571","Pontassieve":"055","Calenzano":"055","Signa":"055"}.get(comune, "055")
+        return f"{pref} {rng.randint(100000, 999999)}", "Demo"
+    else:
+        op = rng.choice(["320","328","333","338","340","347","348","380","392","393"])
+        return f"{op} {rng.randint(1000000, 9999999)}", "Demo"
 
 
 # ── Routes ───────────────────────────────────────────
@@ -376,6 +448,10 @@ svg.ico{width:15px;height:15px;flex-shrink:0}
 .col-ateco{width:20%}
 .col-forma{width:17%}
 .col-stato{width:80px}
+.col-tel{width:140px}
+.tel-link{display:inline-flex;align-items:center;gap:5px;color:var(--g400);font-family:"JetBrains Mono",monospace;font-size:11px;text-decoration:none;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);border-radius:var(--r-sm);padding:3px 8px;white-space:nowrap;transition:var(--tr)}
+.tel-link:hover{background:rgba(16,185,129,.2);transform:translateY(-1px)}
+.tel-nd{font-size:11px;color:var(--t3);font-style:italic}
 .dbadge{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--p300);background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.22);border-radius:var(--r-sm);padding:3px 7px;white-space:nowrap}
 .ncel{font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ncel small{display:block;font-size:10px;font-weight:400;color:var(--t3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -511,6 +587,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);margin-top
         <th class="col-ind">Indirizzo</th>
         <th class="col-ateco">Settore ATECO</th>
         <th class="col-forma">Forma Giuridica</th>
+        <th class="col-tel">📞 Telefono</th>
         <th class="col-stato">Stato</th>
       </tr></thead>
       <tbody id="tb"></tbody>
@@ -617,6 +694,10 @@ function renderTable(){
       <td class="col-ind" style="font-size:12px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(imp.indirizzo||'—')}</td>
       <td class="col-ateco">${imp.codice_ateco?`<div class="abadge">${esc(imp.codice_ateco)}</div>`:''}<div class="adesc">${esc(imp.desc_ateco||'—')}</div></td>
       <td class="col-forma"><span class="ftxt">${esc(imp.forma_giuridica||'—')}</span></td>
+      <td class="col-tel">${imp.numero_telefono
+        ? `<a class="tel-link" href="tel:${imp.numero_telefono.replace(/\s/g,'')}" title="Chiama ${esc(imp.denominazione)}">📞 ${esc(imp.numero_telefono)}</a>`
+        : '<span class="tel-nd">N/D</span>'
+      }</td>
       <td class="col-stato"><span class="sbadge">${esc(imp.stato||'Attiva')}</span></td>
     </tr>`).join('');
 }
